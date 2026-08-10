@@ -1,3 +1,21 @@
+# Hacker Holidays 2026 · Day 14
+
+**Category:** Forensics · Windows · Cryptography  
+**Difficulty:** Hard  
+**Points:** 120  
+**Flag:** `THM{..._..._..._...}` *(redacted)*  
+
+> *"It was always her. It was never a bug; it was the business model."*
+
+---
+
+## 📌 Overview
+This room is a Windows forensics chain, not a single exploit. You are given a KAPE triage dump of a laptop left behind by "Vera" in Room 214. The objective is to follow the artifact trail from browser secrets through DPAPI to a VeraCrypt container, and finally recover the flag from a hidden document.
+
+### 🔗 The Chain:
+```text
+KAPE Triage ➔ Chrome Artifacts ➔ Saved Password ➔ VeraCrypt Container ➔ PDF Flag
+
 Hacker Holidays 2026 · Day 14
 Category: Forensics · Windows · Cryptography
 Difficulty: Hard
