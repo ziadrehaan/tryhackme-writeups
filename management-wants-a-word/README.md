@@ -1,4 +1,4 @@
-Markdown# Hacker Holidays 2026 · Day 14
+#Hacker Holidays 2026 · Day 14
 
 **Category:** Forensics · Windows · Cryptography  
 **Difficulty:** Hard  
