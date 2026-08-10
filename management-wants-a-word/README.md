@@ -1,9 +1,10 @@
-#Hacker Holidays 2026 · Day 14
+Markdown# Management Wants a Word — TryHackMe Writeup
 
-**Category:** Forensics · Windows · Cryptography  
-**Difficulty:** Hard  
-**Points:** 120  
-**Flag:** `THM{..._..._..._...}` *(redacted)*  
+## Hacker Holidays 2026 · Day 14
+* **Category:** Forensics · Windows · Cryptography
+* **Difficulty:** Hard
+* **Points:** 120
+* **Flag:** `THM{..._..._..._...}` *(redacted)*
 
 > *"It was always her. It was never a bug; it was the business model."*
 
@@ -42,10 +43,10 @@ KAPE Triage ➔ Chrome Artifacts ➔ Saved Password ➔ VeraCrypt Container ➔ 
 │                   ├── SYSTEM
 │                   └── ...
 The presence of SAM, SYSTEM, and Vera's full profile tells us we can do offline credential recovery.Step 3 — Chrome History AnalysisOpen History in DB Browser for SQLite and browse the urls table:SQLSELECT id, url, title FROM urls;
-Key findings:http://bytelotus.thm:8080/ — SecureVault Portalhttp://bytelotus.thm:8080/login — Login pageGoogle searches for "chrome cves", "how to exfiltrate data red teaming", "tryhackme"Vera had a local vault application running on bytelotus.thm:8080.Step 4 — Extracting the Saved PasswordOpen Login Data in DB Browser and browse the logins table:origin_urlusername_valuepassword_valuehttp://bytelotus.thm:8080/VeraSecretVaultBLOB (encrypted)The password_value is encrypted with Windows DPAPI and then AES-GCM via Chrome.Option A — ChromePass (Easiest)Download ChromePass from NirSoft.Launch it and go to File ➔ Advanced Options ➔ Select User Data Folder.Point it at the User Data folder (not Default, the parent directory).Result:PlaintextURL:      [http://bytelotus.thm:8080/](http://bytelotus.thm:8080/)
+Key findings:http://bytelotus.thm:8080/ — SecureVault Portalhttp://bytelotus.thm:8080/login — Login pageGoogle searches for "chrome cves", "how to exfiltrate data red teaming", "tryhackme"Vera had a local vault application running on bytelotus.thm:8080.Step 4 — Extracting the Saved PasswordOpen Login Data in DB Browser and browse the logins table:origin_urlusername_valuepassword_valuehttp://bytelotus.thm:8080/VeraSecretVaultBLOB (encrypted)The password_value is encrypted with Windows DPAPI and then AES-GCM via Chrome. To decrypt it you have two options.Option A — ChromePass (Easiest)Download ChromePass from NirSoft.Launch it and go to File ➔ Advanced Options ➔ Select User Data Folder.Point it at the User Data folder (not Default, the parent directory).ChromePass will use the embedded DPAPI keys to decrypt the password automatically.Result:PlaintextURL:      [http://bytelotus.thm:8080/](http://bytelotus.thm:8080/)
 Username: VeraSecretVault
 Password: Wh4t1sV3raD0inG0nTh1sH0st
-Option B — Manual DPAPI + Python (Advanced)Bash# 1. Extract NT hash from SAM/SYSTEM
+Option B — Manual DPAPI + Python (Advanced)If you prefer the command-line route:Bash# 1. Extract NT hash from SAM/SYSTEM
 impacket-secretsdump -sam SAM -system SYSTEM LOCAL
 
 # 2. Crack Vera's password with John/Hashcat
@@ -56,6 +57,10 @@ john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt nt.john
 impacket-dpapi masterkey -file ".../Protect/SID/c90719ef-..." \
   -sid "S-1-5-21-..." \
   -password minivera
+
+# 4. Use a Python script to decrypt Chrome's AES-GCM key from Local State,
+#    then decrypt the password_value BLOB from Login Data.
+Both paths lead to the same password:PlaintextWh4t1sV3raD0inG0nTh1sH0st
 Step 5 — Locating the VeraCrypt ContainerSearch the triage for large files or files named backup:PowerShellGet-ChildItem -Path "C:\...\management-wants-a-word-forensics-hh-day-14" `
   -Recurse -Filter "backup" -ErrorAction SilentlyContinue
 Result:PlaintextDirectory: ...\KAPE\C\Users\vera\Documents
@@ -63,7 +68,10 @@ Result:PlaintextDirectory: ...\KAPE\C\Users\vera\Documents
 Mode        LastWriteTime     Length     Name
 ----        -------------     ------     ----
 ------      8/4/2026 2:15 PM  104857600  backup
-At 100 MB, this is the VeraCrypt volume.Step 6 — Mounting the VeraCrypt ContainerWindows — VeraCrypt GUISelect File ➔ choose backup.Mount ➔ pick a drive letter (e.g., Z:).Enter Password: Wh4t1sV3raD0inG0nTh1sH0stLinux — cryptsetupBashsudo cryptsetup open --type tcrypt --veracrypt "/path/to/backup" veracontainer
+At 100 MB, this is the VeraCrypt volume.Step 6 — Mounting the VeraCrypt ContainerWindows — VeraCrypt GUISelect File ➔ choose backup.Mount ➔ pick a drive letter (e.g., Z:).Enter the password:PlaintextWh4t1sV3raD0inG0nTh1sH0st
+Click OK. The volume mounts read/write.Linux — cryptsetupBashsudo cryptsetup open --type tcrypt --veracrypt \
+  "/path/to/backup" veracontainer
+
 sudo mkdir -p /mnt/veradata
 sudo mount -o ro /dev/mapper/veracontainer /mnt/veradata
 Step 7 — Finding the FlagInside the mounted volume:PlaintextZ:\ (or /mnt/veradata)
@@ -71,4 +79,14 @@ Step 7 — Finding the FlagInside the mounted volume:PlaintextZ:\ (or /mnt/verad
 │   ├── important_invoice_byte_lotus.pdf
 │   └── transactions.csv
 └── ...
-Open important_invoice_byte_lotus.pdf to retrieve the flag embedded in the invoice line-item description.🛠️ Tools UsedToolPurposeDB Browser for SQLiteInspect Chrome History and Login DataChromePass (NirSoft)Decrypt Chrome saved passwordsVeraCryptMount the encrypted containerImpacketsecretsdump + dpapi masterkey decryptionPowerShell / BashFile searching and triage navigation💡 Key TakeawaysForensics is a chain: One artifact leads to the next. There is no single "exploit".Browsers are goldmines: Saved passwords, history, and autofill often contain the keys to the kingdom.DPAPI security relies on user password: Crack the local NT hash, decrypt the master key, and Chrome falls open.Version numbers are clues: 1.26.29 was VeraCrypt, not Chrome.Documents hide secrets in plain sight: Always inspect PDFs, CSVs, and office files inside encrypted containers.
+Open important_invoice_byte_lotus.pdf. The flag is embedded in the invoice line-item description.Flag format: THM{...} (redacted in public writeups).📊 Attack Chain SummaryPlaintext┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│  KAPE Triage    │────▶│ Chrome Login Data │────▶│  SecureVault Pass   │
+│  (Windows Dump) │     │  + History       │     │  Wh4t1sV3raD0in...  │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+                                                          │
+                                                          ▼
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│  PDF Invoice    │◀────│  VeraCrypt Vol   │◀────│  Mount Container    │
+│  (THM{...})     │     │  secret_financial│     │  backup (100 MB)    │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+💡 Key TakeawaysForensics is a chain — One artifact leads to the next. There is no single "exploit".Browsers are goldmines — Saved passwords, history, and autofill often contain the keys to the kingdom.DPAPI security is user-password dependent — Crack the local NT hash, decrypt the master key, and Chrome falls open.Version numbers are clues — 1.26.29 was VeraCrypt, not Chrome.Documents hide secrets in plain sight — Always inspect PDFs, CSVs, and office files inside encrypted containers.🛠️ Tools UsedToolPurposeDB Browser for SQLiteInspect Chrome History and Login DataChromePass (NirSoft)Decrypt Chrome saved passwordsVeraCryptMount the encrypted containerImpacket (optional)secretsdump + dpapi masterkey decryptionPowerShell / BashFile searching and triage navigation🔗 ReferencesTryHackMe — Management Wants a WordVeraCrypt DownloadsNirSoft ChromePassDB Browser for SQLite
